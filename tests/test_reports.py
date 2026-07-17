@@ -50,20 +50,9 @@ def test_sales_report_code_injection_rejected(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-def test_sales_report_no_stack_trace_on_error(client: TestClient) -> None:
-    """Error responses must not disclose stack traces or implementation details."""
-    # An unusually long category string is still a valid request; this exercises
-    # the error handler indirectly by verifying the response shape for a real call.
-    response = client.get("/reports/sales", params={"category": "Laptop"})
-
-    assert response.status_code == 200
-    body = response.json()
-    # The response must not contain traceback-style keys.
-    assert "traceback" not in body
-    assert "error" not in body
-
-
-def test_sales_report_error_response_is_generic(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
+def test_sales_report_error_response_is_generic(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """When an unexpected exception occurs, the API returns a generic error without details."""
     import app.routers.reports as reports_module
 

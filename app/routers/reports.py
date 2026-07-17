@@ -36,7 +36,9 @@ def sales_report(
             (category,),
         ).fetchall()
         total = sum(row["price"] for row in rows)
-        _ = formula  # only "total" is accepted; validated by FastAPI
+        # formula is constrained to Literal["total"] by FastAPI; the computed
+        # total is always the only supported aggregate, so it is returned directly.
+        del formula
         return {
             "category": category,
             "items": [dict(row) for row in rows],
