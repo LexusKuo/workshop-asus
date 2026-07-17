@@ -5,10 +5,6 @@ from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-_ALLOWED_FORMULAS: dict[str, str] = {
-    "total": "Sum of item prices",
-}
-
 
 def create_database() -> sqlite3.Connection:
     connection = sqlite3.connect(":memory:")
@@ -27,34 +23,26 @@ def create_database() -> sqlite3.Connection:
     return connection
 
 
-def _apply_formula(formula: str, total: float) -> float:
-    if formula == "total":
-        return total
-    allowed = sorted(_ALLOWED_FORMULAS)
-    raise HTTPException(status_code=422, detail=f"Unknown formula '{formula}'. Allowed: {allowed}")
-
-
 @router.get("/sales", response_model=None)
 def sales_report(
     category: str = Query(min_length=1, max_length=100),
     formula: Literal["total"] = Query(default="total"),
 ) -> object:
-    connection = create_database()
+    connection = None
     try:
+        connection = create_database()
         rows = connection.execute(
             "SELECT id, name, category, price FROM products WHERE category = ?",
             (category,),
         ).fetchall()
         total = sum(row["price"] for row in rows)
-        calculated_total = _apply_formula(formula, total)
         return {
             "category": category,
             "items": [dict(row) for row in rows],
-            "total": calculated_total,
+            "total": total,
         }
-    except HTTPException:
-        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Internal server error") from exc
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()

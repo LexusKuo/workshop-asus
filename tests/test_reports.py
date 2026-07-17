@@ -90,12 +90,16 @@ def test_formula_total_is_accepted(client: TestClient) -> None:
 
 def test_error_response_does_not_contain_traceback(client: TestClient) -> None:
     """Server errors must not expose Python stack traces in the response body."""
-    # Empty category triggers 422 validation; send a very long value to stress
-    # the endpoint but not expose internal state.
-    response = client.get("/reports/sales", params={"category": "x" * 200})
+    from unittest.mock import patch
 
-    body = response.json()
-    body_str = str(body)
+    from app.routers import reports
+
+    with patch.object(reports, "create_database", side_effect=RuntimeError("db boom")):
+        response = client.get("/reports/sales", params={"category": "Laptop"})
+
+    assert response.status_code == 500
+    body_str = str(response.json())
     assert "Traceback" not in body_str
     assert "traceback" not in body_str
     assert "line " not in body_str
+    assert "db boom" not in body_str
