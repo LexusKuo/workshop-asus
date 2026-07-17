@@ -41,8 +41,8 @@ def sales_report(
             "items": [dict(row) for row in rows],
             "total": total,
         }
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Internal server error") from exc
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error") from None
     finally:
         if connection is not None:
             connection.close()
