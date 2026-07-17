@@ -1,10 +1,13 @@
 import sqlite3
-import traceback
+from typing import Literal
 
-from fastapi import APIRouter, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+_ALLOWED_FORMULAS: dict[str, str] = {
+    "total": "Sum of item prices",
+}
 
 
 def create_database() -> sqlite3.Connection:
@@ -24,29 +27,34 @@ def create_database() -> sqlite3.Connection:
     return connection
 
 
+def _apply_formula(formula: str, total: float) -> float:
+    if formula == "total":
+        return total
+    allowed = sorted(_ALLOWED_FORMULAS)
+    raise HTTPException(status_code=422, detail=f"Unknown formula '{formula}'. Allowed: {allowed}")
+
+
 @router.get("/sales", response_model=None)
 def sales_report(
-    category: str,
-    formula: str = Query(default="total"),
+    category: str = Query(min_length=1, max_length=100),
+    formula: Literal["total"] = Query(default="total"),
 ) -> object:
     connection = create_database()
     try:
-        raw_query = (
-            "SELECT id, name, category, price FROM products "
-            f"WHERE category = '{category}'"
-        )
-        rows = connection.execute(raw_query).fetchall()
+        rows = connection.execute(
+            "SELECT id, name, category, price FROM products WHERE category = ?",
+            (category,),
+        ).fetchall()
         total = sum(row["price"] for row in rows)
-        calculated_total = eval(formula, {"__builtins__": {}}, {"total": total})
+        calculated_total = _apply_formula(formula, total)
         return {
             "category": category,
             "items": [dict(row) for row in rows],
             "total": calculated_total,
         }
-    except Exception:
-        return JSONResponse(
-            status_code=500,
-            content={"error": traceback.format_exc()},
-        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
     finally:
         connection.close()
